@@ -13,14 +13,34 @@ url_targets_json = 'https://raw.github.com/ARMmbed/mbed-os/master/targets/target
 targets_json_list = []
 os_mbed_com_data = {}
 
+#v1 (all targets from targets.json)
+# def download_targets_json():
+#     global targets_json_list
+#     res = requests.get(url_targets_json)
+#     db = res.json()
+    
+#     for i in db:
+#         targets_json_list.append(str(i.upper()))
+
+#v2 (check public field)
 def download_targets_json():
     global targets_json_list
     res = requests.get(url_targets_json)
     db = res.json()
     
+    # Check if target public is set (public=true), or not set (public!=false)
     for i in db:
-        targets_json_list.append(str(i.upper()))
+        target_name = str(i).upper()
 
+        public_not_false = 1
+        for j in db[i]:   
+            if 'public' in j:
+                if db[i]['public'] == 0:
+                    public_not_false = 0 
+        if public_not_false:
+            #print target_name + " public_not_set"
+            targets_json_list.append(target_name)
+        
 def download_os_mbed_com():
     global os_mbed_com_data
     # Read data from os.mbed.com and crete local database
@@ -83,6 +103,19 @@ def print_table(db):
             table.add_row([count, db[i]['name'], \
                     db[i]['logicalboard']['name'].upper(), targets_json, mbedenabled, \
                     ", ".join(map(str, os_version)) ])
+            count += 1
+
+    # Check other targets that are NOT in the online database
+    for i in targets_json_list:
+        in_flag = 0
+        for j in range(len(db)):
+            if i in db[j]['logicalboard']['name'].upper():
+                in_flag = 1
+            else:
+                pass
+        if in_flag == 0:
+            table.add_row([count, '?', \
+                    i, 'y', '?', '?'])
             count += 1
 
     print table
