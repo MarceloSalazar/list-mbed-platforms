@@ -7,14 +7,29 @@ from prettytable import PrettyTable
 from natsort import natsorted
 
 url_os_mbed_com = 'https://os.mbed.com/api/v3/platforms/'
+url_targets_json = 'https://raw.github.com/ARMmbed/mbed-os/master/targets/targets.json'
 
-# Read data from os.mbed.com and crete local database
-response = requests.get(url_os_mbed_com,auth=('user', 'password'))
-data = response.json()
+# Store name of targets from targets.json
+targets_json_list = []
+os_mbed_com_data = {}
+
+def download_targets_json():
+    global targets_json_list
+    res = requests.get(url_targets_json)
+    db = res.json()
+    
+    for i in db:
+        targets_json_list.append(str(i.upper()))
+
+def download_os_mbed_com():
+    global os_mbed_com_data
+    # Read data from os.mbed.com and crete local database
+    response = requests.get(url_os_mbed_com,auth=('user', 'password'))
+    os_mbed_com_data = response.json()
 
 def print_table(db):
-
-    table_header = ['#', 'Name', 'Target', 'Mbed Enabled', 'Mbed OS']
+    global targets_json
+    table_header = ['#', 'Name', 'Target', 'targets.json', 'Mbed Enabled', 'Mbed OS']
 
     table = PrettyTable(table_header)
     table.align['#'] = 'r'
@@ -26,8 +41,13 @@ def print_table(db):
         if db[i]['features'][0]['category']['name'] == "Mbed Enabled":
             mbedenabled = 'y'
         else:
-            mbedenabled = ' '
+            mbedenabled = ''
         
+        if str(db[i]['logicalboard']['name'].upper()) in targets_json_list:
+            targets_json = 'y'
+        else:
+            targets_json = ''
+
         if args.vendor is not None:
             if db[i]['logicalboard']['vendor']['name'].upper() == str(args.vendor).upper():
                 os_version = []
@@ -37,9 +57,10 @@ def print_table(db):
                 
                 os_version = natsorted(os_version)[::-1] 
                 table.add_row([count, db[i]['name'], \
-                db[i]['logicalboard']['name'].upper(), mbedenabled, \
+                db[i]['logicalboard']['name'].upper(), targets_json, mbedenabled, \
                 ", ".join(map(str, os_version)) ])
                 count += 1
+
         elif args.platform is not None:
             if db[i]['vendor']['name'].upper() == str(args.platform).upper():
                 os_version = []
@@ -49,9 +70,20 @@ def print_table(db):
                         
                 os_version = natsorted(os_version)[::-1] 
                 table.add_row([count, db[i]['name'], \
-                        db[i]['logicalboard']['name'].upper(), mbedenabled, \
+                        db[i]['logicalboard']['name'].upper(), targets_json, mbedenabled, \
                         ", ".join(map(str, os_version)) ])
                 count += 1
+        else:
+            os_version = []
+            for j in db[i]['features']:
+                if j['category']['name'] == "Mbed OS support":
+                    os_version.append(j['name'].strip('Mbed OS '))
+                    
+            os_version = natsorted(os_version)[::-1] 
+            table.add_row([count, db[i]['name'], \
+                    db[i]['logicalboard']['name'].upper(), targets_json, mbedenabled, \
+                    ", ".join(map(str, os_version)) ])
+            count += 1
 
     print table
 
@@ -59,6 +91,8 @@ def print_table(db):
 def main():
 
     global args
+    global os_mbed_com_data
+
     # Parser handling
     parser = ArgumentParser(description="Data parser from os.mbed.com/platforms")
 
@@ -89,15 +123,16 @@ def main():
         '-f', '--filter', dest='filter',
         help='Regular expression to filter platform name', required=False)
 
-    # Parse/run command
-    #if len(argv) <= 1:
-    #    parser.print_help()
-    #    exit(1)
-
     args = parser.parse_args()
 
-    # Print all data by default
-    print_table(data)
+    # Download targets.json
+    download_targets_json()
+
+    # Download data from os.mbed.com
+    download_os_mbed_com()
+
+    # Print data
+    print_table(os_mbed_com_data)
 
     # Write output in file
     #if args.output is not None:
