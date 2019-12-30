@@ -12,34 +12,30 @@ url_targets_json = 'https://raw.github.com/ARMmbed/mbed-os/master/targets/target
 # Store name of targets from targets.json
 targets_json_list = []
 os_mbed_com_data = {}
+ext_file_memory = ''
 
-#v1 (all targets from targets.json)
-# def download_targets_json():
-#     global targets_json_list
-#     res = requests.get(url_targets_json)
-#     db = res.json()
-    
-#     for i in db:
-#         targets_json_list.append(str(i.upper()))
+def load_ext_file():
+    global ext_file_memory
+    if args.file:
+        try:
+            with open(args.file, 'r') as file_input:
+                for line in file_input:
+                    ext_file_memory = ext_file_memory + line.upper()
+        except IOError as error:
+            print("I/O error({0}): {1}".format(error.errno, error.strerror))
+            return False
 
-#v2 (check public field)
+# Download target list from targets.json and check public field
 def download_targets_json():
     global targets_json_list
     res = requests.get(url_targets_json)
     db = res.json()
     
     # Check if target public is set (public=true), or not set (public!=false)
-    for i in db:
-        target_name = str(i).upper()
-
-        public_not_false = 1
-        for j in db[i]:   
-            if 'public' in j:
-                if db[i]['public'] == 0:
-                    public_not_false = 0 
-        if public_not_false:
-            #print target_name + " public_not_set"
-            targets_json_list.append(target_name)
+    for i in db:  
+        if 'public' in db[i] and db[i]['public'] == False:
+            continue
+        targets_json_list.append(str(i).upper())
         
 def download_os_mbed_com():
     global os_mbed_com_data
@@ -49,7 +45,7 @@ def download_os_mbed_com():
 
 def print_table(db):
     global targets_json
-    table_header = ['#', 'Name', 'Target', 'targets.json', 'Mbed Enabled', 'Mbed OS']
+    table_header = ['#', 'Name', 'Target', 'targets.json', 'Mbed Enabled', 'Mbed OS', 'Ext']
 
     table = PrettyTable(table_header)
     table.align['#'] = 'r'
@@ -57,53 +53,53 @@ def print_table(db):
     table.align['Mbed OS'] = 'l'
     count = 1
 
+    # Iterate through os.mbed.com targets 
     for i in range(len(db)):
         if db[i]['features'][0]['category']['name'] == "Mbed Enabled":
             mbedenabled = 'y'
         else:
             mbedenabled = ''
-        
-        if str(db[i]['logicalboard']['name'].upper()) in targets_json_list:
+
+        target = db[i]['logicalboard']['name'].upper()
+        if target in targets_json_list:
             targets_json = 'y'
         else:
             targets_json = ''
 
+        # Find Mbed OS version
+        os_version = []
+        for j in db[i]['features']:
+            if j['category']['name'] == "Mbed OS support":
+                os_version.append(j['name'].strip('Mbed OS '))
+        os_version = natsorted(os_version)[::-1]
+        os_version = ", ".join(map(str, os_version))
+
+        # Filter by vendor
         if args.vendor is not None:
             if db[i]['logicalboard']['vendor']['name'].upper() == str(args.vendor).upper():
-                os_version = []
-                for j in db[i]['features']:
-                    if j['category']['name'] == "Mbed OS support":
-                        os_version.append(j['name'].strip('Mbed OS '))
-                
-                os_version = natsorted(os_version)[::-1] 
                 table.add_row([count, db[i]['name'], \
-                db[i]['logicalboard']['name'].upper(), targets_json, mbedenabled, \
-                ", ".join(map(str, os_version)) ])
-                count += 1
+                target, targets_json, mbedenabled, os_version])
 
+
+        # Filter by platform
         elif args.platform is not None:
             if db[i]['vendor']['name'].upper() == str(args.platform).upper():
-                os_version = []
-                for j in db[i]['features']:
-                    if j['category']['name'] == "Mbed OS support":
-                        os_version.append(j['name'].strip('Mbed OS '))
-                        
-                os_version = natsorted(os_version)[::-1] 
                 table.add_row([count, db[i]['name'], \
-                        db[i]['logicalboard']['name'].upper(), targets_json, mbedenabled, \
-                        ", ".join(map(str, os_version)) ])
-                count += 1
-        else:
-            os_version = []
-            for j in db[i]['features']:
-                if j['category']['name'] == "Mbed OS support":
-                    os_version.append(j['name'].strip('Mbed OS '))
-                    
-            os_version = natsorted(os_version)[::-1] 
+                        target, targets_json, mbedenabled, os_version])
+
+
+        # Show all vendor/platforms
+        else: 
+            if target in ext_file_memory:
+                external = 'y'
+            else:
+                external = 'n'
+
             table.add_row([count, db[i]['name'], \
-                    db[i]['logicalboard']['name'].upper(), targets_json, mbedenabled, \
-                    ", ".join(map(str, os_version)) ])
-            count += 1
+                    target, targets_json, mbedenabled, \
+                    os_version, external ])
+        
+        count += 1
 
     # Check other targets that are NOT in the online database
     for i in targets_json_list:
@@ -111,11 +107,11 @@ def print_table(db):
         for j in range(len(db)):
             if i in db[j]['logicalboard']['name'].upper():
                 in_flag = 1
-            else:
-                pass
+                break
+
         if in_flag == 0:
             table.add_row([count, '?', \
-                    i, 'y', '?', '?'])
+                    i, 'y', '?', '?', 'tbd'])
             count += 1
 
     print table
@@ -153,10 +149,13 @@ def main():
         help='Regular expression to filter platform by vendor', required=False)
 
     parser.add_argument(
-        '-f', '--filter', dest='filter',
-        help='Regular expression to filter platform name', required=False)
+        '-f', '--file', dest='file',
+        help='Text file to check if target is listed there', required=False)
 
     args = parser.parse_args()
+
+    if args.file:
+        load_ext_file()
 
     # Download targets.json
     download_targets_json()
