@@ -1,21 +1,40 @@
 # Simple script to read data from os.mbed.com/platforms
 
 import requests
+import os
 import urllib, json
 from argparse import ArgumentParser
 from prettytable import PrettyTable
 from natsort import natsorted
+from dotenv import load_dotenv
 
 url_os_mbed_com = 'https://os.mbed.com/api/v3/platforms/'
 url_targets_json = 'https://raw.github.com/ARMmbed/mbed-os/master/targets/targets.json'
+url_confluence = 'https://confluence.arm.com/rest/api/content/355339061?expand=body.storage'
 
 # Store name of targets from targets.json
 targets_json_list = []
 os_mbed_com_data = {}
 ext_file_memory = ''
 
-def load_ext_file():
+
+def load_confluence():
     global ext_file_memory
+
+    # Load local configuration file
+    load_dotenv('.env')
+    
+    user = os.getenv("CONFLUENCE_USER")
+    passw = os.getenv("CONFLUENCE_PASS")
+
+    if user == '' or passw == '':
+        print 'Confluence credentials not valid'
+        exit()
+
+    res = requests.get(url_confluence,auth=(user, passw))
+    ext_file_memory = res.json()
+
+def load_ext_file():
     if args.file:
         try:
             with open(args.file, 'r') as file_input:
@@ -27,7 +46,7 @@ def load_ext_file():
 
 # Download target list from targets.json and check public field
 def download_targets_json():
-    global targets_json_list
+    #global targets_json_list
     res = requests.get(url_targets_json)
     db = res.json()
     
@@ -156,6 +175,9 @@ def main():
 
     if args.file:
         load_ext_file()
+    else:
+        load_confluence()
+
 
     # Download targets.json
     download_targets_json()
