@@ -9,6 +9,12 @@ Simple script to list Mbed platforms from os.mbed.com
 python list-platforms.py -h
 ```
 
+- List all platforms and compare with Confluence
+
+```
+python list-platforms.py
+```
+
 - Filter by vendor
 
 ```
@@ -21,7 +27,7 @@ python list-platforms.py -v ST
 python list-platforms.py -p ST
 ```
 
-- Check externa file
+- Check external file
 
 ```
 python list-platforms.py -f file.txt
@@ -29,7 +35,7 @@ python list-platforms.py -f file.txt
 
 Note: if no file is specified, the application will attemp to read from the confluence page
 
-#### Configuration to read from Confluence
+#### Configuration of Confluence credentials
 
 Create a `.env` file and add the following:
 

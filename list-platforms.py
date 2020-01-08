@@ -68,7 +68,7 @@ def download_os_mbed_com():
 
 def print_table(db):
     global targets_json
-    table_header = ['#', 'Name', 'Target', 'targets.json', 'Mbed Enabled', 'Mbed OS', 'Confluence']
+    table_header = ['#', 'Name', 'Target', 'targets.json', 'Mbed Enabled', 'Ext', 'Mbed OS']
 
     table = PrettyTable(table_header)
     table.align['#'] = 'r'
@@ -101,15 +101,15 @@ def print_table(db):
         if args.vendor is not None:
             if db[i]['logicalboard']['vendor']['name'].upper() == str(args.vendor).upper():
                 table.add_row([count, db[i]['name'], \
-                target, targets_json, mbedenabled, os_version])
-
+                target, targets_json, mbedenabled, '', os_version])
+                count += 1
 
         # Filter by platform
         elif args.platform is not None:
             if db[i]['vendor']['name'].upper() == str(args.platform).upper():
                 table.add_row([count, db[i]['name'], \
-                        target, targets_json, mbedenabled, os_version])
-
+                        target, targets_json, mbedenabled, '', os_version])
+                count += 1
 
         # Show all vendor/platforms
         else: 
@@ -120,22 +120,29 @@ def print_table(db):
 
             table.add_row([count, db[i]['name'], \
                     target, targets_json, mbedenabled, \
-                    os_version, external ])
+                    external, os_version ])
         
-        count += 1
-
-    # Check other targets that are NOT in the online database
-    for i in targets_json_list:
-        in_flag = 0
-        for j in range(len(db)):
-            if i in db[j]['logicalboard']['name'].upper():
-                in_flag = 1
-                break
-
-        if in_flag == 0:
-            table.add_row([count, '?', \
-                    i, 'y', '?', '?', 'tbd'])
             count += 1
+
+    if args.vendor is None and args.platform is None: 
+        # Check other targets that are NOT in the online database
+        for i in targets_json_list:
+            in_flag = 0
+            for j in range(len(db)):
+                if i in db[j]['logicalboard']['name'].upper():
+                    in_flag = 1
+                    break
+
+            if in_flag == 0:
+                if i in ext_file_memory:
+                    external = 'y'
+                else:
+                    external = 'n'
+    
+                table.add_row([count, '?', \
+                        i, 'y', '?', external, '?'])
+                count += 1
+
 
     print(table)
 
