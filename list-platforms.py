@@ -1,4 +1,4 @@
-# Simple script to read data from os.mbed.com/platforms
+# Simple script to read target data from online databases
 
 import requests
 import os
@@ -28,11 +28,15 @@ def load_confluence():
     passw = os.getenv("CONFLUENCE_PASS")
 
     if user == '' or passw == '':
-        print 'Confluence credentials not valid'
+        print('Confluence credentials not valid')
         exit()
 
     res = requests.get(url_confluence,auth=(user, passw))
-    ext_file_memory = res.json()
+
+    if res.status_code == 200: # Success
+        ext_file_memory = str(res.content).upper()
+    else:
+        print('Error at downloading Confluence page')
 
 def load_ext_file():
     if args.file:
@@ -64,7 +68,7 @@ def download_os_mbed_com():
 
 def print_table(db):
     global targets_json
-    table_header = ['#', 'Name', 'Target', 'targets.json', 'Mbed Enabled', 'Mbed OS', 'Ext']
+    table_header = ['#', 'Name', 'Target', 'targets.json', 'Mbed Enabled', 'Mbed OS', 'Confluence']
 
     table = PrettyTable(table_header)
     table.align['#'] = 'r'
@@ -133,7 +137,7 @@ def print_table(db):
                     i, 'y', '?', '?', 'tbd'])
             count += 1
 
-    print table
+    print(table)
 
 
 def main():
