@@ -1,64 +1,48 @@
-# Simple script to read target data from online databases
+# Simple script to read target data from targets.json and spreadsheet
 
 import requests
 import os
 import urllib, json
+import time
+import openpyxl.styles
 from argparse import ArgumentParser
 from prettytable import PrettyTable
 from natsort import natsorted
 from dotenv import load_dotenv
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+from openpyxl import load_workbook
+from progress.bar import IncrementalBar
 
 url_os_mbed_com = 'https://os.mbed.com/api/v3/platforms/'
 url_targets_json = 'https://raw.github.com/ARMmbed/mbed-os/master/targets/targets.json'
-url_confluence = 'https://confluence.arm.com/rest/api/content/355339061?expand=body.storage'
 
-# Store name of targets from targets.json
-targets_json_list = []
+# Ignore non-valid targets from targets.json
+targets_ignore = ["TARGET", "PSA_TARGET", "NSPE_TARGET", "SPE_TARGET", "CM4_UARM", "CM4_ARM", \
+                  "CM4F_UARM", "CM4F_ARM", "__BUILD_TOOLS_METADATA__"]
 os_mbed_com_data = {}
-ext_file_memory = ''
-
-
-def load_confluence():
-    global ext_file_memory
-
-    # Load local configuration file
-    load_dotenv('.env')
-    
-    user = os.getenv("CONFLUENCE_USER")
-    passw = os.getenv("CONFLUENCE_PASS")
-
-    if user == '' or passw == '':
-        print('Confluence credentials not valid')
-        exit()
-
-    res = requests.get(url_confluence,auth=(user, passw))
-
-    if res.status_code == 200: # Success
-        ext_file_memory = str(res.content).upper()
-    else:
-        print('Error at downloading Confluence page')
-
-def load_ext_file():
-    if args.file:
-        try:
-            with open(args.file, 'r') as file_input:
-                for line in file_input:
-                    ext_file_memory = ext_file_memory + line.upper()
-        except IOError as error:
-            print("I/O error({0}): {1}".format(error.errno, error.strerror))
-            return False
+spreadsheet_file = ''
 
 # Download target list from targets.json and check public field
-def download_targets_json():
-    #global targets_json_list
+def get_targets_json():
+    
+    targets_json = []
     res = requests.get(url_targets_json)
     db = res.json()
-    
+
+    bar = IncrementalBar('Processing', max=len(db))
+
+    print("\nRead targets from targets.json")
     # Check if target public is set (public=true), or not set (public!=false)
     for i in db:  
-        if 'public' in db[i] and db[i]['public'] == False:
-            continue
-        targets_json_list.append(str(i).upper())
+        # Check if targets are not public
+        #if 'public' in db[i] and db[i]['public'] == False:
+        #    continue
+        targets_json.append(str(i).upper())
+        bar.next()
+
+    print("\n")
+    return targets_json  
         
 def download_os_mbed_com():
     global os_mbed_com_data
@@ -147,32 +131,157 @@ def print_table(db):
     print(table)
 
 
+def check_missing_targets_json():
+    """ Check missing items in targets.json and prints     
+
+    Returns:    
+    none
+    
+    """
+
+    if spreadsheet_file == '':
+        print("Spreadsheet not found")
+
+    # Open spreadsheet
+    try:
+        wb = load_workbook(filename = spreadsheet_file)
+        ws = wb['Data']
+
+    except:
+        print("Could not find '.xlsx' in the current directory. Skipping check.")
+        return targets
+   
+    print("\nCheck missing items in spreadsheet")
+
+    bar = IncrementalBar('Processing', max=ws.max_row)
+
+    missing_targets = []
+    for row in range(2, ws.max_row):
+        #if ws.cell(row=row, column=1).value != None:
+        #partner = ws.cell(row=row, column=1).value
+
+        target = ws.cell(row=row, column=3).value
+    
+        if target.upper() in targets_json:
+            pass
+        else:
+            missing_targets.append(str(target).upper())
+        bar.next()
+    
+    print('\n')
+    print(missing_targets)
+
+def get_target_spreadsheet():
+    """ Returns a list of known targets in the spreadsheet       
+
+    Returns:    
+    A list of targets
+    
+    """
+
+    if spreadsheet_file == '':
+        print("Spreadsheet not found\n")
+
+    targets = []
+
+    # Open spreadsheet
+    try:
+        wb = load_workbook(filename = spreadsheet_file)
+        ws = wb['Data']
+
+    except:
+        print("Could not find '.xlsx' in the current directory. Skipping check.")
+        return targets
+   
+    print("\nRead targets from spreadsheet")
+    bar = IncrementalBar('Processing', max=ws.max_row)
+
+    for row in range(2, ws.max_row+1):
+        target = ws.cell(row=row, column=3).value
+        targets.append(target.upper())
+        bar.next()
+
+    print("\n")
+    return targets
+
+def check_missing_items():
+
+    targets_json = get_targets_json()
+    targets_spreadsheet = get_target_spreadsheet()
+
+    print("\nMissing items in targets.json")
+    for i in targets_spreadsheet:
+        missing = 1
+        for j in targets_json:
+            if i == j:
+                missing = 0
+        if missing == 1:
+            print(i)
+
+    print("\nMissing items in spreadsheet")
+    for i in targets_json:
+        if i in targets_ignore:
+            continue
+        missing = 1
+        for j in targets_spreadsheet:
+            if i == j:
+                missing = 0
+        if missing == 1:
+            print(i)
+
+def update_spreadsheet():
+
+    targets_json = get_targets_json()
+    targets_spreadsheet = get_target_spreadsheet()
+
+    # Open spreadsheet
+    try:
+        wb = load_workbook(filename = spreadsheet_file)
+        ws = wb['Data']
+
+    except:
+        print("Could not find '.xlsx' in the current directory. Skipping check.")
+        return
+   
+    print("\nUpdate spreadsheet")
+    bar = IncrementalBar('Processing', max=ws.max_row)
+
+    for row in range(2, ws.max_row+1):
+        target = str(ws.cell(row=row, column=3).value).upper()
+
+        missing = 1
+        for j in targets_json:
+            if target == j:
+                missing = 0
+
+        if missing == 1:
+            ws.cell(row=row, column=13).value = "N"
+        else:
+            ws.cell(row=row, column=13).value = "Y"
+
+        bar.next()
+
+    # Save spreadsheet (requires file to be closed elsewhere)
+    wb.save(filename = spreadsheet_file)
+
 def main():
 
     global args
     global os_mbed_com_data
+    global spreadsheet_file
 
     # Parser handling
     parser = ArgumentParser(description="Data parser from os.mbed.com/platforms")
-
-    parser.add_argument(
-        '-m', '--mbed-enabled', dest='mbed-enabled',
-        action='store_const', const=0, default=0,
-        help='Display only Mbed Enabled platforms', required=False)
     
     parser.add_argument(
-        '-2', '--mbed2', dest='mbed2',
-        action='store_const', const=0, default=0,
-        help='Display only Mbed 2 platforms', required=False)
+        '-m', '--missing', dest='missing',
+        action='store_const', const=1, default=0,
+        help='Check missing items', required=False)
 
     parser.add_argument(
-        '-5', '--mbed5', dest='mbed5',
-        action='store_const', const=0, default=0,
-        help='Display only Mbed OS 5 platforms', required=False)
-
-    parser.add_argument(
-        '-p', '--platform', dest='platform',
-        help='Regular expression to filter platform by platform', required=False)
+        '-u', '--update', dest='update',
+        action='store_const', const=1, default=0,
+        help='Update spreadsheet', required=False)
 
     parser.add_argument(
         '-v', '--vendor', dest='vendor',
@@ -184,26 +293,18 @@ def main():
 
     args = parser.parse_args()
 
+    # Load spreadsheet
     if args.file:
-        load_ext_file()
-    else:
-        load_confluence()
+        spreadsheet_file = args.file
 
+    # Check missing items
+    if args.missing:
+        print("Checking missing items...")
+        check_missing_items()
 
-    # Download targets.json
-    download_targets_json()
-
-    # Download data from os.mbed.com
-    download_os_mbed_com()
-
-    # Print data
-    print_table(os_mbed_com_data)
-
-    # Write output in file
-    #if args.output is not None:
-    #    returned_string = generate_output()
-    #else:  # Write output in screen
-    #    returned_string = memap.generate_output(args.export, depth)
+    if args.update:
+        print("Update spreadsheet...")
+        update_spreadsheet()
 
     exit(0)
 
