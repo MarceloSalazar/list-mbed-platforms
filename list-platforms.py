@@ -23,32 +23,40 @@ targets_ignore = ["TARGET", "PSA_TARGET", "NSPE_TARGET", "SPE_TARGET", "CM4_UARM
 os_mbed_com_data = {}
 spreadsheet_file = ''
 
-# Download target list from targets.json and check public field
-def get_targets_json():
-    
-    targets_json = []
-    res = requests.get(url_targets_json)
-    db = res.json()
 
-    bar = IncrementalBar('Processing', max=len(db))
-
-    print("\nRead targets from targets.json")
-    # Check if target public is set (public=true), or not set (public!=false)
-    for i in db:  
-        # Check if targets are not public
-        #if 'public' in db[i] and db[i]['public'] == False:
-        #    continue
-        targets_json.append(str(i).upper())
-        bar.next()
-
-    print("\n")
-    return targets_json  
-        
-def download_os_mbed_com():
-    global os_mbed_com_data
+def get_target_os_mbed_com():
+    #global os_mbed_com_data
+    targets = {}
     # Read data from os.mbed.com and crete local database
+    # TODO: use user/pass using dotenv info
     response = requests.get(url_os_mbed_com,auth=('user', 'password'))
-    os_mbed_com_data = response.json()
+    db = response.json()
+
+    print("Print targets...\n")
+    # Iterate through os.mbed.com targets 
+    for i in range(len(db)):
+        target = {}
+        target['name'] = db[i]['logicalboard']['name'].upper()
+        print(target['name'])
+        
+        target['vendor'] = db[i]['vendor']['name'].upper()
+        target['mbed-enabled'] = db[i]['features'][0]['category']['name']
+        target['mbed5'] = 'N'
+        target['mbed2'] = 'N'
+        target['pelion'] = 'N' # search for Mbed Enabled Pelion Ready
+        os_version = []
+        
+        for j in db[i]['features']:
+            if j['category']['name'] == "Mbed OS support":
+                if "5" == j['name'].strip('Mbed OS ')[0]:
+                    target['mbed5'] = 'Y'
+                elif "2" == j['name'].strip('Mbed OS ')[0]:
+                    target['mbed2'] = 'Y'  
+                    
+        targets[i] = target
+    return targets
+
+
 
 def print_table(db):
     global targets_json
@@ -127,7 +135,6 @@ def print_table(db):
                         i, 'y', '?', external, '?'])
                 count += 1
 
-
     print(table)
 
 
@@ -170,6 +177,27 @@ def check_missing_targets_json():
     
     print('\n')
     print(missing_targets)
+
+# Download target list from targets.json and check public field
+def get_targets_json():
+    
+    targets_json = []
+    res = requests.get(url_targets_json)
+    db = res.json()
+
+    bar = IncrementalBar('Processing', max=len(db))
+
+    print("\nRead targets from targets.json")
+    # Check if target public is set (public=true), or not set (public!=false)
+    for i in db:  
+        # Check if targets are not public
+        #if 'public' in db[i] and db[i]['public'] == False:
+        #    continue
+        targets_json.append(str(i).upper())
+        bar.next()
+
+    print("\n")
+    return targets_json  
 
 def get_target_spreadsheet():
     """ Returns a list of known targets in the spreadsheet       
@@ -255,9 +283,9 @@ def update_spreadsheet():
                 missing = 0
 
         if missing == 1:
-            ws.cell(row=row, column=13).value = "N"
+            ws.cell(row=row, column=14).value = "N"
         else:
-            ws.cell(row=row, column=13).value = "Y"
+            ws.cell(row=row, column=14).value = "Y"
 
         bar.next()
 
@@ -305,6 +333,8 @@ def main():
     if args.update:
         print("Update spreadsheet...")
         update_spreadsheet()
+
+    get_target_os_mbed_com()
 
     exit(0)
 
