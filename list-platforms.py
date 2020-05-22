@@ -15,7 +15,10 @@ from openpyxl import load_workbook
 from progress.bar import IncrementalBar
 
 url_os_mbed_com = 'https://os.mbed.com/api/v3/platforms/'
+# master
 url_targets_json = 'https://raw.github.com/ARMmbed/mbed-os/master/targets/targets.json'
+# url_targets_json = 'https://raw.githubusercontent.com/MarceloSalazar/mbed-os/platform_cleanup3/targets/targets.json'
+
 
 # Ignore non-valid targets from targets.json
 targets_ignore = ["TARGET", "PSA_TARGET", "NSPE_TARGET", "SPE_TARGET", "CM4_UARM", "CM4_ARM", \
