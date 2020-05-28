@@ -311,7 +311,7 @@ def main():
 
     parser.add_argument(
         '-f', '--file', dest='file',
-        help='Text file to check if target is listed there', required=False)
+        help='XLSX file to update with all information', required=False)
 
     args = parser.parse_args()
 
