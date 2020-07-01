@@ -21,7 +21,7 @@ XLS_COL_TARGET = 1
 XLS_COL_GITHUB = 2
 XLS_COL_GITHUB_RTOS = 3
 XLS_COL_GITHUB_BARE = 4
-XLS_COL_MBEDCOM_60  = 5
+XLS_COL_MBEDCOM_6X  = 5
 XLS_COL_MBEDCOM_RTOS = 6
 XLS_COL_MBEDCOM_BARE = 7
 XLS_COL_ME_BASELINE = 8
@@ -34,7 +34,7 @@ class Target_database(object):
 
     class Target(object):
           def __init__(self, target_name, github=False, \
-                        mbedcom60=False, mbedcom6_rtos=False, mbedcom6_bare=False,
+                        mbedcom6x='unknown', mbedcom6_rtos=False, mbedcom6_bare=False,
                         me_baseline = False, me_advanced= False, me_pelion=False):
               
             self.target_name = str(target_name).upper()
@@ -43,7 +43,7 @@ class Target_database(object):
             self.target_github         = github  # target is on github or not
             self.target_github_rtos    = False   # target on github has rtos enabled or not (supported_application_profile)
             self.target_github_bare    = False   # target on github has baremetal enabled or not (supported_application_profile)
-            self.target_mbed_com60     = mbedcom60 # target is public or not
+            self.target_mbed_com6x     = mbedcom6x # target is public or not
             self.target_mbed_com6_rtos = mbedcom6_rtos # target has rtos feature or not
             self.target_mbed_com6_bare = mbedcom6_bare # target has baremetal feature or not
             self.target_me_baseline    = me_baseline
@@ -88,8 +88,8 @@ class Target_database(object):
                 if target.target_github:
                     self.targets[i].target_github = target.target_github
                 
-                if target.target_mbed_com60:
-                    self.targets[i].target_mbed_com60 = target.target_mbed_com60
+                if target.target_mbed_com6x:
+                    self.targets[i].target_mbed_com6x = target.target_mbed_com6x
 
                 if target.target_mbed_com6_rtos:
                     self.targets[i].target_mbed_com6_rtos = target.target_mbed_com6_rtos
@@ -115,8 +115,9 @@ class Target_database(object):
         ''' TODO '''
         
         # TODO: check branch/tag
-        url_targets_json = 'https://raw.github.com/ARMmbed/mbed-os/master/targets/targets.json'
-
+        #url_targets_json = 'https://raw.githubusercontent.com/ARMmbed/mbed-os/mbed-os-6.0.0/targets/targets.json'
+        url_targets_json = 'https://raw.githubusercontent.com/ARMmbed/mbed-os/mbed-os-6.1.0/targets/targets.json'
+        
         res = requests.get(url_targets_json)
         db = res.json()
 
@@ -149,18 +150,25 @@ class Target_database(object):
         for i in range(len(db)):
             bar.next()
             
-            m60      = False
+            m6x      = False
             m6RTOS   = False
             m6BARE   = False
             meBase   = False
             meAdv    = False
             mePelion = False
 
+            # TODO: only check boards that are listed in mbed.com (not hidden)
+            #if db[i]['logicalboard']['features']['hide'] == True:
+            #    print("Target not found: " + str(db[i]['logicalboard']['name']))
+            #    continue
+            
             for j in db[i]['features']:
                 if j['category']['name'] == "Mbed OS support":                    
-                    if j['name'] == "Mbed OS 5.15":
-                        m60 = True
-
+                    if j['name'] == "Mbed OS 6.1":  # TODO: the version should be a parameter to be specified by user
+                        m6x = True
+                    else:
+                        m6x = 'pending'
+                        
                 if j['category']['name'] == "Mbed OS 6":                    
                     if j['name'] == "RTOS":
                         m6RTOS = True
@@ -176,7 +184,7 @@ class Target_database(object):
                         mePelion = True
                         
             new_target = self.Target(db[i]['logicalboard']['name'], \
-                mbedcom60=m60, mbedcom6_rtos=m6RTOS , mbedcom6_bare=m6BARE, \
+                mbedcom6x=m6x, mbedcom6_rtos=m6RTOS , mbedcom6_bare=m6BARE, \
                 me_baseline=meBase, me_advanced=meAdv, me_pelion=mePelion )
 
             
@@ -195,7 +203,7 @@ class Target_database(object):
 
         table_header = ['#', 'Target name', \
                              'GitHub', 'GitHub RTOS', 'GitHub Bare', \
-                             'Mbed.com 6.0', 'Mbed.com RTOS', 'Mbed.com Bare', \
+                             'Mbed.com 6.x', 'Mbed.com RTOS', 'Mbed.com Bare', \
                              'ME Baseline',  'ME Advanced', 'ME Pelion-Rdy']
         
         table = PrettyTable(table_header)
@@ -205,7 +213,7 @@ class Target_database(object):
                 table.add_row([i, \
                                self.targets[i].target_name, \
                                self.targets[i].target_github, '', '', \
-                               self.targets[i].target_mbed_com60, '', '',\
+                               self.targets[i].target_mbed_com6x, '', '',\
                                self.targets[i].target_me_baseline, \
                                self.targets[i].target_me_advanced, \
                                self.targets[i].target_me_pelion])
@@ -273,11 +281,15 @@ class Target_database(object):
             # Github Baremetal
             # TODO
             
-            # Mbed.com 6.0
-            ws.cell(row=i, column=XLS_COL_MBEDCOM_60).value = self.targets[idx].target_mbed_com60  
-            if self.targets[idx].target_mbed_com60 == False:
-                ws.cell(row=i, column=XLS_COL_MBEDCOM_60).fill = fill_red
-
+            # Mbed.com 6.x
+            ws.cell(row=i, column=XLS_COL_MBEDCOM_6X).value = self.targets[idx].target_mbed_com6x  
+            if self.targets[idx].target_mbed_com6x == False:
+                ws.cell(row=i, column=XLS_COL_MBEDCOM_6X).fill = fill_red
+            elif self.targets[idx].target_mbed_com6x == 'pending':
+                ws.cell(row=i, column=XLS_COL_MBEDCOM_6X).fill = fill_yel
+            else:
+                ws.cell(row=i, column=XLS_COL_MBEDCOM_6X).fill = fill_non
+                
             # Mbed.com 6 RTOS
             ws.cell(row=i, column=XLS_COL_MBEDCOM_RTOS).value = self.targets[idx].target_mbed_com6_rtos
 
@@ -313,10 +325,14 @@ def main():
         '-f', '--file', dest='file',
         help='XLSX file to update with all information', required=False)
 
+    parser.add_argument(
+        '-v', '--version', dest='version',
+        help='Version of Mbed OS to check, e.g "mbed-os-6.1.0" (WIP)', required=False)
+    
     args = parser.parse_args()
 
     db = Target_database()
-
+        
     # Load spreadsheet and update
     if args.file:
          db.update_spreadsheet(args.file)
